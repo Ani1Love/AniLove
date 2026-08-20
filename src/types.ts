@@ -85,11 +85,17 @@ export interface ExternalLink {
   color?: string;
 }
 
+export type StreamSource =
+  | { type: 'hls'; src: string; label?: string }
+  | { type: 'mp4'; src: string; label?: string }
+  | { type: 'embed'; src: string; label?: string };
+
 export interface StreamingEpisode {
   title?: string;
   thumbnail?: string;
   url?: string;
   site?: string;
+  streamSource?: StreamSource;
 }
 
 export interface Anime {

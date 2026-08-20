@@ -27,7 +27,7 @@ import {
   Sliders,
   Compass,
 } from 'lucide-react';
-import { Anime, ThumbnailAppearance, WatchHistoryEntry } from '../types';
+import { Anime, StreamSource, ThumbnailAppearance } from '../types';
 import { recordWatchProgress, getStoredWatchHistory, getStoredSettings } from '../services/storage';
 
 interface EpisodeItem {
@@ -36,6 +36,8 @@ interface EpisodeItem {
   thumbnail: string;
   synopsis?: string;
   filler?: boolean;
+  url?: string;
+  streamSource?: StreamSource;
 }
 
 interface ProVideoPlayerProps {
@@ -49,6 +51,7 @@ interface ProVideoPlayerProps {
   onClosePlayer?: () => void;
   onThumbnailStyleChange?: (style: ThumbnailAppearance) => void;
   initialThumbnailStyle?: ThumbnailAppearance;
+  streamSource?: StreamSource;
 }
 
 export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
@@ -62,11 +65,12 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
   onClosePlayer,
   onThumbnailStyleChange,
   initialThumbnailStyle = 'snapshot',
+  streamSource,
 }) => {
   // Player state
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [currentTime, setCurrentTime] = useState<number>(initialTime);
-  const [duration, setDuration] = useState<number>(1440); // 24 mins default
+  const [duration, setDuration] = useState<number>(0);
   const [volume, setVolume] = useState<number>(1.0);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [volumeBoost, setVolumeBoost] = useState<number>(100); // 100% to 300%
@@ -111,6 +115,7 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
 
   // Refs
   const playerContainerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const holdSpeedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressActiveRef = useRef<boolean>(false);
@@ -130,13 +135,33 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  const currentEpData = episodesList.find(e => e.number === episodeNumber);
+
+  const inferStreamSource = useCallback((): StreamSource => {
+    if (streamSource) return streamSource;
+    if (currentEpData?.streamSource) return currentEpData.streamSource;
+
+    const episodeUrl = currentEpData?.url;
+    if (episodeUrl) {
+      const lowerUrl = episodeUrl.toLowerCase().split('?')[0];
+      if (lowerUrl.endsWith('.m3u8')) return { type: 'hls', src: episodeUrl };
+      if (lowerUrl.endsWith('.mp4')) return { type: 'mp4', src: episodeUrl };
+    }
+
+    return { type: 'embed', src: getEmbedStreamUrl() };
+  }, [streamSource, currentEpData?.streamSource, currentEpData?.url, activeServer, episodeNumber, audioMode, anime.id, anime.idMal]);
+
+  const resolvedStreamSource = inferStreamSource();
+  const isExternalPlayerMode = resolvedStreamSource.type === 'embed';
+  const hasMediaTimestamps = !isExternalPlayerMode && Number.isFinite(duration) && duration > 0;
+
   // Check saved resume time on initial mount
   useEffect(() => {
     const history = getStoredWatchHistory();
     const existing = history.find(h => h.animeId === anime.id && h.episodeNumber === episodeNumber);
     if (existing && existing.currentTime > 15 && (!existing.duration || existing.currentTime < existing.duration - 30)) {
       setCurrentTime(existing.currentTime);
-      setDuration(existing.duration || 1440);
+      if (existing.duration) setDuration(existing.duration);
       setResumedFromTime(existing.currentTime);
       setShowResumeToast(true);
       const timer = setTimeout(() => setShowResumeToast(false), 5000);
@@ -148,6 +173,7 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
 
   // Periodic watch progress recorder (saves every 3 seconds)
   useEffect(() => {
+    if (!hasMediaTimestamps) return;
     const interval = setInterval(() => {
       if (currentTime > 5) {
         recordWatchProgress({
@@ -162,24 +188,10 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [anime, episodeNumber, episodeTitle, seasonTitle, currentTime, duration, thumbnailStyle]);
+  }, [anime, episodeNumber, episodeTitle, seasonTitle, currentTime, duration, thumbnailStyle, hasMediaTimestamps]);
 
-  // Simulated playback time advancement (syncs timestamp cleanly)
-  useEffect(() => {
-    if (!isPlaying) return;
-    const speed = is2xHolding ? 2.0 : playbackSpeed;
-    const interval = setInterval(() => {
-      setCurrentTime(prev => {
-        const next = prev + (0.5 * speed);
-        if (next >= duration) {
-          setIsPlaying(false);
-          return duration;
-        }
-        return next;
-      });
-    }, 500);
-    return () => clearInterval(interval);
-  }, [isPlaying, playbackSpeed, is2xHolding, duration]);
+  // No simulated playback clock: timestamps come from real media events only.
+
 
   // Autohide controls on inactivity
   const handleMouseMove = useCallback(() => {
@@ -275,18 +287,56 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
         setSkipBackwardEffect(true);
         setTimeout(() => setSkipBackwardEffect(false), 600);
       } else {
-        // Double tap center: toggle play/pause
-        setIsPlaying(prev => !prev);
+        // Double tap center: toggle play/pause for real media only
+        if (!isExternalPlayerMode) {
+          const video = videoRef.current;
+          if (video) {
+            if (video.paused) video.play();
+            else video.pause();
+          } else {
+            setIsPlaying(prev => !prev);
+          }
+        }
       }
     }
   };
 
   const handleSkip = (seconds: number) => {
-    setCurrentTime(prev => {
-      const next = Math.max(0, Math.min(duration, prev + seconds));
-      return next;
-    });
+    if (isExternalPlayerMode) return;
+    const media = videoRef.current;
+    const targetDuration = media?.duration && Number.isFinite(media.duration) ? media.duration : duration || 1440;
+    const next = Math.max(0, Math.min(targetDuration, currentTime + seconds));
+    if (media) media.currentTime = next;
+    setCurrentTime(next);
   };
+
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || isExternalPlayerMode) return;
+
+    video.volume = volume;
+    video.muted = isMuted;
+    video.playbackRate = is2xHolding ? 2.0 : playbackSpeed;
+  }, [isExternalPlayerMode, volume, isMuted, playbackSpeed, is2xHolding]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || isExternalPlayerMode || initialTime <= 0) return;
+
+    const resume = () => {
+      if (Number.isFinite(video.duration) && initialTime < video.duration) {
+        video.currentTime = initialTime;
+      }
+    };
+
+    if (video.readyState >= 1) {
+      resume();
+    } else {
+      video.addEventListener('loadedmetadata', resume, { once: true });
+      return () => video.removeEventListener('loadedmetadata', resume);
+    }
+  }, [isExternalPlayerMode, initialTime, resolvedStreamSource.src]);
 
   // Fullscreen toggle
   const toggleFullscreen = async () => {
@@ -315,7 +365,15 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
         case 'Space':
         case 'KeyK':
           e.preventDefault();
-          setIsPlaying(prev => !prev);
+          if (!isExternalPlayerMode) {
+            const video = videoRef.current;
+            if (video) {
+              if (video.paused) video.play();
+              else video.pause();
+            } else {
+              setIsPlaying(prev => !prev);
+            }
+          }
           break;
         case 'ArrowRight':
           e.preventDefault();
@@ -358,7 +416,7 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
   }, []);
 
   // Compute embed stream URL based on selected server
-  const getEmbedStreamUrl = () => {
+  function getEmbedStreamUrl() {
     const malId = anime.idMal || anime.id;
     const isDub = audioMode === 'DUB';
 
@@ -374,10 +432,9 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
       default:
         return `https://anikoto.com/watch/${malId}?ep=${episodeNumber}`;
     }
-  };
+  }
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const currentEpData = episodesList.find(e => e.number === episodeNumber);
   const displayTitle = currentEpData?.title || episodeTitle || `Episode ${episodeNumber}`;
   const bannerImage = anime.bannerImage || anime.coverImage?.extraLarge || anime.coverImage?.large;
 
@@ -397,14 +454,41 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
     >
       {/* 1. Underlying Video Player Stream / Iframe Frame */}
       <div className="absolute inset-0 z-0 bg-black">
-        <iframe
-          key={`${activeServer}-${episodeNumber}-${audioMode}`}
-          src={getEmbedStreamUrl()}
-          title={`${anime.title?.english || anime.title?.romaji} - Episode ${episodeNumber}`}
-          className={`w-full h-full border-0 ${directIframeInteractionMode ? 'pointer-events-auto' : 'pointer-events-none'}`}
-          allowFullScreen
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        />
+        {isExternalPlayerMode ? (
+          <iframe
+            key={`${activeServer}-${episodeNumber}-${audioMode}`}
+            src={resolvedStreamSource.src}
+            title={`${anime.title?.english || anime.title?.romaji} - Episode ${episodeNumber}`}
+            className={`w-full h-full border-0 ${directIframeInteractionMode ? 'pointer-events-auto' : 'pointer-events-none'}`}
+            allowFullScreen
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+        ) : (
+          <video
+            ref={videoRef}
+            key={resolvedStreamSource.src}
+            src={resolvedStreamSource.src}
+            className="w-full h-full object-contain"
+            autoPlay
+            playsInline
+            controls={false}
+            onLoadedMetadata={e => {
+              const mediaDuration = e.currentTarget.duration;
+              if (Number.isFinite(mediaDuration)) setDuration(mediaDuration);
+            }}
+            onTimeUpdate={e => setCurrentTime(e.currentTarget.currentTime)}
+            onDurationChange={e => {
+              const mediaDuration = e.currentTarget.duration;
+              if (Number.isFinite(mediaDuration)) setDuration(mediaDuration);
+            }}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={() => {
+              setIsPlaying(false);
+              setCurrentTime(duration);
+            }}
+          />
+        )}
       </div>
 
       {/* 2. Interactive Gesture Layer (Double tap to skip 10s, single tap for controls, touch-and-hold for 2X speed) */}
@@ -431,7 +515,7 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
       )}
 
       {/* 3. Discreet 2X Speed Indicator when Holding (Small top badge) */}
-      {is2xHolding && (
+      {!isExternalPlayerMode && is2xHolding && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none animate-in fade-in zoom-in-95 duration-150">
           <div className="px-3 py-1 rounded-md bg-black/85 text-white font-black text-xs tracking-wider border border-neutral-700 shadow-xl backdrop-blur-md">
             2×
@@ -730,6 +814,12 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
         }`}
       >
         <div className="space-y-2 player-controls-interactive" onClick={e => e.stopPropagation()}>
+          {isExternalPlayerMode && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-[11px] font-semibold text-amber-200">
+              External player mode: precise play, seek, duration, and watch-history timestamps are handled by the embedded provider.
+            </div>
+          )}
+
           {/* Progress Timeline Scrubber Bar */}
           <div className="relative group/scrubber cursor-pointer py-2">
             <div className="w-full h-1.5 group-hover/scrubber:h-2.5 rounded-full bg-slate-800/90 overflow-hidden transition-all">
@@ -745,8 +835,13 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
               min="0"
               max={duration || 1440}
               value={currentTime}
-              onChange={e => setCurrentTime(Number(e.target.value))}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              disabled={isExternalPlayerMode}
+              onChange={e => {
+                const next = Number(e.target.value);
+                if (videoRef.current) videoRef.current.currentTime = next;
+                setCurrentTime(next);
+              }}
+              className={`absolute inset-0 w-full h-full opacity-0 ${isExternalPlayerMode ? 'cursor-not-allowed' : 'cursor-pointer'}`}
             />
           </div>
 
@@ -756,8 +851,17 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
             <div className="flex items-center gap-2 sm:gap-4">
               {/* Play / Pause Button */}
               <button
-                onClick={() => setIsPlaying(prev => !prev)}
-                className="p-2 sm:p-2.5 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white transition transform active:scale-95 shadow-lg shadow-orange-600/30"
+                disabled={isExternalPlayerMode}
+                onClick={() => {
+                  const video = videoRef.current;
+                  if (video) {
+                    if (video.paused) video.play();
+                    else video.pause();
+                  } else {
+                    setIsPlaying(prev => !prev);
+                  }
+                }}
+                className="p-2 sm:p-2.5 rounded-2xl bg-orange-600 hover:bg-orange-500 text-white transition transform active:scale-95 shadow-lg shadow-orange-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
                 title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
               >
                 {isPlaying ? <Pause className="w-5 h-5 fill-white" /> : <Play className="w-5 h-5 fill-white ml-0.5" />}
@@ -765,12 +869,13 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
 
               {/* 10s Rewind */}
               <button
+                disabled={isExternalPlayerMode}
                 onClick={() => {
                   handleSkip(-10);
                   setSkipBackwardEffect(true);
                   setTimeout(() => setSkipBackwardEffect(false), 500);
                 }}
-                className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition"
+                className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 title="Skip back 10s (Left Arrow)"
               >
                 <RotateCcw className="w-4 h-4" />
@@ -778,12 +883,13 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
 
               {/* 10s Forward */}
               <button
+                disabled={isExternalPlayerMode}
                 onClick={() => {
                   handleSkip(10);
                   setSkipForwardEffect(true);
                   setTimeout(() => setSkipForwardEffect(false), 500);
                 }}
-                className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 transition"
+                className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/80 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 title="Skip forward 10s (Right Arrow)"
               >
                 <RotateCw className="w-4 h-4" />
