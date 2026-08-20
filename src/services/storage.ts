@@ -1,4 +1,5 @@
 import { UserMediaListItem, UserSettings, Anime } from '../types';
+import { DEFAULT_PREFERRED_STREAM_SERVER_IDS } from './streamingProviders';
 
 const SETTINGS_KEY = 'anilove_settings_v3';
 const SETTINGS_KEY_LEGACY = 'anilili_settings_v3';
@@ -24,7 +25,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   browserPushEnabled: false,
   preferredAudio: 'sub',
   preferredLanguages: ['SUB', 'DUB'],
-  preferredServers: ['anikoto', 'vidsrc', 'embedsu'],
+  preferredServers: [...DEFAULT_PREFERRED_STREAM_SERVER_IDS],
   autoPlayNextEpisode: true,
   defaultStreamServer: 'auto',
 };

@@ -6,8 +6,9 @@ import {
   Sliders, Smartphone, Check, Moon, Sun, Info, BellRing,
   Trash2, Send
 } from 'lucide-react';
-import { UserSettings, UserMediaListItem, MediaListStatus } from '../types';
+import { UserSettings, UserMediaListItem, MediaListStatus, StreamServerId } from '../types';
 import { getAniListAuthUrl, fetchUserMediaList, fetchAuthenticatedViewer } from '../services/anilist';
+import { DEFAULT_PREFERRED_STREAM_SERVER_IDS, STREAM_PROVIDERS, STREAM_PROVIDER_IDS } from '../services/streamingProviders';
 
 interface SettingsViewProps {
   settings: UserSettings;
@@ -44,6 +45,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     PAUSED: true,
     DROPPED: true,
   });
+  const getPreferredServers = () => settings.preferredServers || DEFAULT_PREFERRED_STREAM_SERVER_IDS;
+  const isStreamServerId = (serverId: string): serverId is StreamServerId =>
+    STREAM_PROVIDER_IDS.includes(serverId as StreamServerId);
+
+  const getProviderOptionLabel = (provider: (typeof STREAM_PROVIDERS)[number], rankIndex: number) => {
+    const isDefaultForRank = provider.id === DEFAULT_PREFERRED_STREAM_SERVER_IDS[rankIndex];
+    const label = provider.description ? `${provider.label} (${provider.description})` : provider.label;
+
+    return isDefaultForRank ? `★ ${label}` : label;
+  };
+
+  const updatePreferredServer = (rankIndex: number, serverId: StreamServerId) => {
+    const current = getPreferredServers();
+    const updated = [...DEFAULT_PREFERRED_STREAM_SERVER_IDS] as StreamServerId[];
+
+    for (let index = 0; index < updated.length; index += 1) {
+      updated[index] = current[index] || DEFAULT_PREFERRED_STREAM_SERVER_IDS[index];
+    }
+
+    updated[rankIndex] = serverId;
+
+    onSaveSettings({
+      ...settings,
+      preferredServers: updated,
+    });
+  };
+
 
   // Option 2: Two-Way Sync manual token state
   const [manualToken, setManualToken] = useState('');
@@ -721,23 +749,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <span className="px-1.5 py-0.5 rounded bg-emerald-950 border border-emerald-500/40 text-[10px] text-emerald-300 font-black">#1</span>
                     </div>
                     <select
-                      value={settings.preferredServers?.[0] || 'anikoto'}
+                      value={settings.preferredServers?.[0] || DEFAULT_PREFERRED_STREAM_SERVER_IDS[0]}
                       onChange={e => {
-                        const current = settings.preferredServers || ['anikoto', 'vidsrc', 'embedsu'];
-                        const newFirst = e.target.value as any;
-                        const remaining = ['anikoto', 'vidsrc', 'embedsu', '2embed'].filter(s => s !== newFirst);
-                        const updated = [newFirst, current[1] !== newFirst ? current[1] || remaining[0] : remaining[0], current[2] !== newFirst ? current[2] || remaining[1] : remaining[1]];
-                        onSaveSettings({
-                          ...settings,
-                          preferredServers: updated as any,
-                        });
+                        if (isStreamServerId(e.target.value)) updatePreferredServer(0, e.target.value);
                       }}
                       className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                     >
-                      <option value="anikoto">★ Anikoto (Fast HD / Zero Ads)</option>
-                      <option value="vidsrc">VidSrc Mirror</option>
-                      <option value="embedsu">EmbedSu Multi-Stream</option>
-                      <option value="2embed">2Embed Direct Engine</option>
+                      {STREAM_PROVIDERS.map(provider => (
+                        <option key={provider.id} value={provider.id}>
+                          {getProviderOptionLabel(provider, 0)}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -748,22 +770,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <span className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-500/40 text-[10px] text-amber-300 font-black">#2</span>
                     </div>
                     <select
-                      value={settings.preferredServers?.[1] || 'vidsrc'}
+                      value={settings.preferredServers?.[1] || DEFAULT_PREFERRED_STREAM_SERVER_IDS[1]}
                       onChange={e => {
-                        const current = settings.preferredServers || ['anikoto', 'vidsrc', 'embedsu'];
-                        const newSecond = e.target.value as any;
-                        const updated = [current[0] || 'anikoto', newSecond, current[2] || 'embedsu'];
-                        onSaveSettings({
-                          ...settings,
-                          preferredServers: updated as any,
-                        });
+                        if (isStreamServerId(e.target.value)) updatePreferredServer(1, e.target.value);
                       }}
                       className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                     >
-                      <option value="anikoto">Anikoto (Fast HD)</option>
-                      <option value="vidsrc">★ VidSrc Mirror</option>
-                      <option value="embedsu">EmbedSu Multi-Stream</option>
-                      <option value="2embed">2Embed Direct Engine</option>
+                      {STREAM_PROVIDERS.map(provider => (
+                        <option key={provider.id} value={provider.id}>
+                          {getProviderOptionLabel(provider, 1)}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -774,22 +791,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       <span className="px-1.5 py-0.5 rounded bg-indigo-950 border border-indigo-500/40 text-[10px] text-indigo-300 font-black">#3</span>
                     </div>
                     <select
-                      value={settings.preferredServers?.[2] || 'embedsu'}
+                      value={settings.preferredServers?.[2] || DEFAULT_PREFERRED_STREAM_SERVER_IDS[2]}
                       onChange={e => {
-                        const current = settings.preferredServers || ['anikoto', 'vidsrc', 'embedsu'];
-                        const newThird = e.target.value as any;
-                        const updated = [current[0] || 'anikoto', current[1] || 'vidsrc', newThird];
-                        onSaveSettings({
-                          ...settings,
-                          preferredServers: updated as any,
-                        });
+                        if (isStreamServerId(e.target.value)) updatePreferredServer(2, e.target.value);
                       }}
                       className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                     >
-                      <option value="anikoto">Anikoto (Fast HD)</option>
-                      <option value="vidsrc">VidSrc Mirror</option>
-                      <option value="embedsu">★ EmbedSu Multi-Stream</option>
-                      <option value="2embed">2Embed Direct Engine</option>
+                      {STREAM_PROVIDERS.map(provider => (
+                        <option key={provider.id} value={provider.id}>
+                          {getProviderOptionLabel(provider, 2)}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -824,9 +836,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   className="w-full px-4 py-2.5 rounded-xl bg-[#0b0e1b] border border-slate-800 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="auto">Auto Select (Fastest Available HD Source)</option>
-                  <option value="vidcloud">VidCloud Ultra HD Server</option>
-                  <option value="streamsb">StreamSB Rapid Server</option>
-                  <option value="hydrax">Hydrax Multi-Quality Server</option>
+                  {STREAM_PROVIDERS.map(provider => (
+                    <option key={provider.id} value={provider.id}>
+                      {provider.description ? `${provider.label} (${provider.description})` : provider.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

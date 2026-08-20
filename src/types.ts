@@ -1,3 +1,5 @@
+import type { STREAM_PROVIDERS } from './services/streamingProviders';
+
 export type MediaListStatus = 'CURRENT' | 'PLANNING' | 'COMPLETED' | 'DROPPED' | 'PAUSED' | 'REPEATING';
 
 export interface AnimeTitle {
@@ -190,7 +192,7 @@ export interface AppNotification {
   episode?: number;
 }
 
-export type StreamServerId = 'anikoto' | 'vidsrc' | 'embedsu' | '2embed';
+export type StreamServerId = (typeof STREAM_PROVIDERS)[number]['id'];
 export type AudioLanguagePreference = 'SUB' | 'DUB';
 
 export interface UserSettings {
