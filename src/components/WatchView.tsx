@@ -70,6 +70,7 @@ export const WatchView: React.FC<WatchViewProps> = ({
   const coverUrl = anime.coverImage?.extraLarge || anime.coverImage?.large || anime.coverImage?.medium;
   const currentProgress = userItem?.progress || 0;
   const episodesTotal = anime.episodes || details?.episodes || 24;
+  const score = details?.averageScore || anime.averageScore || details?.meanScore || anime.meanScore;
 
   // Scroll to top on mount
   useEffect(() => {
@@ -185,6 +186,9 @@ export const WatchView: React.FC<WatchViewProps> = ({
     title: `Episode ${episodeNumber}`,
     synopsis: details?.description ? sanitizeDescription(details.description) : undefined,
   };
+  const synopsis = details?.description || anime.description
+    ? sanitizeDescription(details?.description || anime.description || '')
+    : currentEpisodeData?.synopsis || 'Synopsis details are not available for this episode yet.';
 
   const hasNextEpisode = episodeNumber < episodeList.length;
   const hasPrevEpisode = episodeNumber > 1;
@@ -205,13 +209,13 @@ export const WatchView: React.FC<WatchViewProps> = ({
   return (
     <div className="min-h-screen bg-black text-white pb-20 selection:bg-indigo-500 selection:text-white">
       {/* Top Navigation Sticky Header */}
-      <header className="sticky top-0 z-40 bg-black/95 backdrop-blur-xl border-b border-neutral-800/80 px-4 sm:px-6 py-3">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-40 bg-black/70 backdrop-blur-md px-3 sm:px-6 py-2.5">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           {/* Left: Back Button & Title */}
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-200 hover:text-white text-xs font-bold border border-neutral-700 transition active:scale-95 shrink-0 cursor-pointer"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-neutral-200 hover:text-white text-xs font-bold transition active:scale-95 shrink-0 cursor-pointer"
               title="Return to previous screen"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -244,7 +248,7 @@ export const WatchView: React.FC<WatchViewProps> = ({
 
             <button
               onClick={() => onOpenDetails(anime)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 hover:text-white text-xs font-bold border border-indigo-500/40 transition cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-xs font-bold transition cursor-pointer"
             >
               <Info className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Anime Info</span>
@@ -254,9 +258,9 @@ export const WatchView: React.FC<WatchViewProps> = ({
       </header>
 
       {/* Main Watch Page Container */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 pt-0 sm:pt-5 space-y-5 sm:space-y-6">
         {/* Theatrical Video Player Component */}
-        <div className="w-full rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-neutral-800 bg-black">
+        <div className="w-full rounded-none sm:rounded-3xl overflow-hidden shadow-2xl sm:border sm:border-neutral-800 bg-black">
           <ProVideoPlayer
             anime={anime}
             episodeNumber={episodeNumber}
@@ -274,8 +278,61 @@ export const WatchView: React.FC<WatchViewProps> = ({
           />
         </div>
 
+        {/* Episode metadata */}
+        <section className="mx-3 sm:mx-0 rounded-3xl bg-[#08080b] border border-neutral-800/80 p-4 sm:p-5 shadow-2xl">
+          <div className="flex gap-4">
+            {coverUrl && (
+              <img
+                src={coverUrl}
+                alt={`${title} cover`}
+                className="w-24 sm:w-32 aspect-[2/3] rounded-2xl object-cover border border-neutral-700/70 shadow-xl shrink-0"
+              />
+            )}
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-blue-400">
+                <Film className="w-3.5 h-3.5" />
+                <span>Episode {currentEpisodeData.number}</span>
+              </div>
+              <h2 className="mt-1 text-xl sm:text-3xl font-black leading-tight text-white">{title}</h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-neutral-300">
+                <span className="inline-flex items-center gap-1 rounded-full bg-yellow-500/10 px-2.5 py-1 text-yellow-300 border border-yellow-500/20">
+                  <Star className="w-3.5 h-3.5 fill-yellow-300" />
+                  {score ? `${score}%` : 'N/A'}
+                </span>
+                <span className="rounded-full bg-neutral-900 px-2.5 py-1 border border-neutral-800">
+                  {currentEpisodeData.title}
+                </span>
+                {anime.format && (
+                  <span className="rounded-full bg-neutral-900 px-2.5 py-1 border border-neutral-800">{anime.format}</span>
+                )}
+              </div>
+              <p className={`mt-3 text-sm leading-relaxed text-neutral-400 ${showFullSynopsis ? '' : 'line-clamp-3'}`}>
+                {synopsis}
+              </p>
+              {synopsis.length > 180 && (
+                <button
+                  type="button"
+                  onClick={() => setShowFullSynopsis(value => !value)}
+                  className="mt-2 text-xs font-bold text-blue-400 hover:text-blue-300 cursor-pointer"
+                >
+                  {showFullSynopsis ? 'Show less' : 'Read more'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" aria-label="Playback server and language options">
+            <button className="shrink-0 rounded-full bg-white text-black px-4 py-2 text-xs font-black shadow-lg">Server 1</button>
+            <button className="shrink-0 rounded-full bg-neutral-900 border border-neutral-700 px-4 py-2 text-xs font-bold text-neutral-200">Server 2</button>
+            <button className="shrink-0 rounded-full bg-neutral-900 border border-neutral-700 px-4 py-2 text-xs font-bold text-neutral-200">Sub</button>
+            <button className="shrink-0 rounded-full bg-neutral-900 border border-neutral-700 px-4 py-2 text-xs font-bold text-neutral-200">Dub</button>
+            <button className="shrink-0 rounded-full bg-blue-600/20 border border-blue-500/40 px-4 py-2 text-xs font-black text-blue-300">More servers</button>
+          </div>
+        </section>
+
         {/* Player Controls & Episode Navigation Bar */}
-        <div className="flex items-center justify-between flex-wrap gap-4 p-4 rounded-2xl bg-[#0a0a0d] border border-neutral-800 shadow-2xl">
+        <div className="mx-3 sm:mx-0 flex items-center justify-between flex-wrap gap-3 p-3 sm:p-4 rounded-2xl bg-[#0a0a0d] border border-neutral-800 shadow-2xl">
           {/* Episode Quick Switch Buttons */}
           <div className="flex items-center gap-2">
             <button
@@ -322,8 +379,8 @@ export const WatchView: React.FC<WatchViewProps> = ({
         </div>
 
         {/* Episode Catalog Browser (Full Width - Overview Removed as Requested) */}
-        <div className="w-full text-left">
-          <div className="p-5 sm:p-6 rounded-2xl bg-[#0a0a0d] border border-neutral-800 space-y-4">
+        <div className="w-full text-left px-3 sm:px-0">
+          <div className="p-4 sm:p-6 rounded-2xl bg-[#0a0a0d] border border-neutral-800 space-y-4">
             {/* Header with Season selector and view switch */}
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-2">
@@ -420,7 +477,7 @@ export const WatchView: React.FC<WatchViewProps> = ({
                       }}
                       className={`p-3 rounded-xl text-center font-bold text-xs transition border cursor-pointer ${
                         isCurrent
-                          ? 'bg-blue-900/80 text-white border-blue-500 shadow-lg shadow-blue-950/60 ring-2 ring-blue-500/40'
+                          ? 'bg-neutral-950 text-white border-blue-500 shadow-lg shadow-black/60 ring-2 ring-blue-500/50'
                           : isWatched
                           ? 'bg-emerald-950/30 border-emerald-600/30 text-emerald-300 hover:bg-neutral-900'
                           : 'bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800 hover:text-white'
@@ -430,7 +487,7 @@ export const WatchView: React.FC<WatchViewProps> = ({
                       {isWatched && !isCurrent && (
                         <div className="text-[10px] text-emerald-400 mt-0.5">Watched</div>
                       )}
-                      {isCurrent && <div className="text-[10px] text-blue-300 mt-0.5 font-black">Playing</div>}
+                      {isCurrent && <div className="text-[10px] text-blue-300 mt-0.5 font-black">Now playing</div>}
                     </button>
                   );
                 })}
@@ -450,7 +507,7 @@ export const WatchView: React.FC<WatchViewProps> = ({
                       }}
                       className={`group flex items-center justify-between gap-3.5 p-2.5 rounded-xl border transition cursor-pointer select-none ${
                         isCurrent
-                          ? 'bg-blue-950/70 border-blue-600/90 shadow-lg shadow-blue-950/40 ring-1 ring-blue-500/30'
+                          ? 'bg-neutral-950 border-blue-500/90 shadow-lg shadow-black/70 ring-1 ring-blue-500/50'
                           : 'bg-neutral-900/90 hover:bg-neutral-800/80 border-neutral-800/80 hover:border-neutral-700'
                       }`}
                     >
@@ -477,13 +534,13 @@ export const WatchView: React.FC<WatchViewProps> = ({
                       <div className="flex-1 min-w-0">
                         <h4
                           className={`font-bold text-xs sm:text-sm truncate leading-snug ${
-                            isCurrent ? 'text-blue-300' : 'text-neutral-200 group-hover:text-white'
+                            isCurrent ? 'text-white' : 'text-neutral-200 group-hover:text-white'
                           }`}
                         >
                           {ep.title}
                         </h4>
                         <p className={`text-[11px] mt-0.5 ${isCurrent ? 'text-blue-400 font-medium' : 'text-neutral-400'}`}>
-                          {isCurrent ? 'Currently Playing' : isWatched ? 'Completed' : 'Ready to watch'}
+                          {isCurrent ? 'Now playing' : isWatched ? 'Completed' : 'Ready to watch'}
                         </p>
                       </div>
 
