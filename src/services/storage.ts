@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   browserPushEnabled: false,
   preferredAudio: 'sub',
   preferredLanguages: ['SUB', 'DUB'],
-  preferredServers: ['anikoto', 'vidsrc', 'embedsu'],
+  preferredServers: ['official-link'],
   autoPlayNextEpisode: true,
   defaultStreamServer: 'auto',
 };

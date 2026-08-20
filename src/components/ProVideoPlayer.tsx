@@ -27,8 +27,9 @@ import {
   Sliders,
   Compass,
 } from 'lucide-react';
-import { Anime, ThumbnailAppearance, WatchHistoryEntry } from '../types';
+import { Anime, ThumbnailAppearance, WatchHistoryEntry, StreamServerId } from '../types';
 import { recordWatchProgress, getStoredWatchHistory, getStoredSettings } from '../services/storage';
+import { DEFAULT_STREAM_PROVIDER_ID, isStreamProviderId, resolveEpisodeSource, StreamLanguage, StreamResolution, StreamSource } from '../services/streamingProviders';
 
 interface EpisodeItem {
   number: number;
@@ -79,17 +80,20 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
   const [showThumbnailMenu, setShowThumbnailMenu] = useState<boolean>(false);
   const [showEpisodeDrawer, setShowEpisodeDrawer] = useState<boolean>(false);
   const [directIframeInteractionMode, setDirectIframeInteractionMode] = useState<boolean>(false);
-  const [activeServer, setActiveServer] = useState<'anikoto' | 'vidsrc' | 'embedsu' | '2embed'>('anikoto');
-  const [audioMode, setAudioMode] = useState<'SUB' | 'DUB'>('SUB');
-  const [quality, setQuality] = useState<'1080p' | '720p' | '480p' | 'auto'>('1080p');
+  const [activeServer, setActiveServer] = useState<StreamServerId>(DEFAULT_STREAM_PROVIDER_ID);
+  const [audioMode, setAudioMode] = useState<StreamLanguage>('SUB');
+  const [quality, setQuality] = useState<StreamResolution>('1080p');
+  const [streamSource, setStreamSource] = useState<StreamSource | null>(null);
+  const [streamMessage, setStreamMessage] = useState<string>('Loading source...');
   const [thumbnailStyle, setThumbnailStyle] = useState<ThumbnailAppearance>(initialThumbnailStyle);
 
   // Synchronize preferred server and language priority from settings
   useEffect(() => {
     try {
       const s = getStoredSettings();
-      if (s.preferredServers && s.preferredServers.length > 0) {
-        setActiveServer(s.preferredServers[0]);
+      const preferredServer = s.preferredServers?.[0];
+      if (preferredServer && isStreamProviderId(preferredServer)) {
+        setActiveServer(preferredServer);
       }
       if (s.preferredLanguages && s.preferredLanguages.length > 0) {
         setAudioMode(s.preferredLanguages[0] === 'DUB' ? 'DUB' : 'SUB');
@@ -357,24 +361,35 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Compute embed stream URL based on selected server
-  const getEmbedStreamUrl = () => {
-    const malId = anime.idMal || anime.id;
-    const isDub = audioMode === 'DUB';
+  // Resolve an official/legal stream source instead of constructing untrusted embed URLs.
+  useEffect(() => {
+    let cancelled = false;
+    setStreamSource(null);
+    setStreamMessage('Loading source...');
 
-    switch (activeServer) {
-      case 'anikoto':
-        return `https://anikoto.com/watch/${malId}?ep=${episodeNumber}&dub=${isDub ? '1' : '0'}`;
-      case 'vidsrc':
-        return `https://vidsrc.me/embed/anime?id=${malId}&ep=${episodeNumber}`;
-      case 'embedsu':
-        return `https://embed.su/embed/anime/${malId}/${episodeNumber}`;
-      case '2embed':
-        return `https://www.2embed.cc/embed/${malId}?ep=${episodeNumber}`;
-      default:
-        return `https://anikoto.com/watch/${malId}?ep=${episodeNumber}`;
-    }
-  };
+    resolveEpisodeSource({
+      anime,
+      episodeNumber,
+      providerId: activeServer,
+      language: audioMode,
+      resolution: quality,
+    }).then(result => {
+      if (cancelled) return;
+
+      if (result.status === 'available' && result.source) {
+        setStreamSource(result.source);
+        setStreamMessage('');
+        return;
+      }
+
+      setStreamSource(null);
+      setStreamMessage(result.message || 'No source available');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [anime, episodeNumber, activeServer, audioMode, quality]);
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const currentEpData = episodesList.find(e => e.number === episodeNumber);
@@ -397,14 +412,30 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
     >
       {/* 1. Underlying Video Player Stream / Iframe Frame */}
       <div className="absolute inset-0 z-0 bg-black">
-        <iframe
-          key={`${activeServer}-${episodeNumber}-${audioMode}`}
-          src={getEmbedStreamUrl()}
-          title={`${anime.title?.english || anime.title?.romaji} - Episode ${episodeNumber}`}
-          className={`w-full h-full border-0 ${directIframeInteractionMode ? 'pointer-events-auto' : 'pointer-events-none'}`}
-          allowFullScreen
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        />
+        {streamSource?.isEmbeddable ? (
+          <iframe
+            key={`${streamSource.provider.id}-${episodeNumber}-${audioMode}`}
+            src={streamSource.url}
+            title={`${anime.title?.english || anime.title?.romaji} - Episode ${episodeNumber}`}
+            className={`w-full h-full border-0 ${directIframeInteractionMode ? 'pointer-events-auto' : 'pointer-events-none'}`}
+            allowFullScreen
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+            <div className="text-lg font-bold text-white">{streamMessage || 'No source available'}</div>
+            {streamSource?.external && (
+              <a
+                href={streamSource.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full bg-orange-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-orange-500"
+              >
+                Watch on official site <ExternalLink size={16} />
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 2. Interactive Gesture Layer (Double tap to skip 10s, single tap for controls, touch-and-hold for 2X speed) */}
@@ -682,7 +713,7 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
             <div className="space-y-1.5">
               <div className="text-neutral-300 font-bold">Streaming Server:</div>
               <div className="grid grid-cols-2 gap-1.5">
-                {(['anikoto', 'vidsrc', 'embedsu', '2embed'] as const).map(srv => (
+                {(['official-link'] as const).map(srv => (
                   <button
                     key={srv}
                     onClick={() => {
@@ -695,7 +726,7 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
                         : 'bg-neutral-900 text-neutral-300 hover:bg-neutral-800 border border-neutral-800'
                     }`}
                   >
-                    {srv === 'anikoto' ? '★ Anikoto (Fast)' : srv.toUpperCase()}
+                    ★ Official Links
                   </button>
                 ))}
               </div>

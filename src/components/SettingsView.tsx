@@ -696,102 +696,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </div>
               </div>
 
-              {/* Preferred Streaming Server Ranking (Priority 1, 2, 3) */}
+              {/* Preferred Streaming Provider */}
               <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <h4 className="font-bold text-slate-200 text-sm flex items-center gap-2">
                       <Sliders className="w-4 h-4 text-orange-400" />
-                      <span>Preferred Streaming Server Order (1 / 2 / 3)</span>
+                      <span>Preferred Streaming Provider</span>
                     </h4>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Select up to 3 streaming servers in order of priority. If server 1 is unavailable, player falls back seamlessly.
+                      AniLove only resolves official, licensed, user-configured, or otherwise legally permitted sources.
                     </p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-lg bg-orange-950/60 border border-orange-500/30 text-[11px] font-bold text-orange-300">
-                    Scraping Compatible
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-[11px] font-bold text-emerald-300">
+                    Official Sources
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {/* Server Rank 1 */}
-                  <div className="p-3.5 rounded-xl bg-[#0b0e1b] border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-emerald-400">1st Priority Server:</span>
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-950 border border-emerald-500/40 text-[10px] text-emerald-300 font-black">#1</span>
-                    </div>
-                    <select
-                      value={settings.preferredServers?.[0] || 'anikoto'}
-                      onChange={e => {
-                        const current = settings.preferredServers || ['anikoto', 'vidsrc', 'embedsu'];
-                        const newFirst = e.target.value as any;
-                        const remaining = ['anikoto', 'vidsrc', 'embedsu', '2embed'].filter(s => s !== newFirst);
-                        const updated = [newFirst, current[1] !== newFirst ? current[1] || remaining[0] : remaining[0], current[2] !== newFirst ? current[2] || remaining[1] : remaining[1]];
-                        onSaveSettings({
-                          ...settings,
-                          preferredServers: updated as any,
-                        });
-                      }}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
-                    >
-                      <option value="anikoto">★ Anikoto (Fast HD / Zero Ads)</option>
-                      <option value="vidsrc">VidSrc Mirror</option>
-                      <option value="embedsu">EmbedSu Multi-Stream</option>
-                      <option value="2embed">2Embed Direct Engine</option>
-                    </select>
+                <div className="p-3.5 rounded-xl bg-[#0b0e1b] border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-emerald-400">Streaming Provider:</span>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-950 border border-emerald-500/40 text-[10px] text-emerald-300 font-black">Legal</span>
                   </div>
-
-                  {/* Server Rank 2 */}
-                  <div className="p-3.5 rounded-xl bg-[#0b0e1b] border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-amber-400">2nd Priority Server:</span>
-                      <span className="px-1.5 py-0.5 rounded bg-amber-950 border border-amber-500/40 text-[10px] text-amber-300 font-black">#2</span>
-                    </div>
-                    <select
-                      value={settings.preferredServers?.[1] || 'vidsrc'}
-                      onChange={e => {
-                        const current = settings.preferredServers || ['anikoto', 'vidsrc', 'embedsu'];
-                        const newSecond = e.target.value as any;
-                        const updated = [current[0] || 'anikoto', newSecond, current[2] || 'embedsu'];
-                        onSaveSettings({
-                          ...settings,
-                          preferredServers: updated as any,
-                        });
-                      }}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
-                    >
-                      <option value="anikoto">Anikoto (Fast HD)</option>
-                      <option value="vidsrc">★ VidSrc Mirror</option>
-                      <option value="embedsu">EmbedSu Multi-Stream</option>
-                      <option value="2embed">2Embed Direct Engine</option>
-                    </select>
-                  </div>
-
-                  {/* Server Rank 3 */}
-                  <div className="p-3.5 rounded-xl bg-[#0b0e1b] border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-indigo-400">3rd Priority Server:</span>
-                      <span className="px-1.5 py-0.5 rounded bg-indigo-950 border border-indigo-500/40 text-[10px] text-indigo-300 font-black">#3</span>
-                    </div>
-                    <select
-                      value={settings.preferredServers?.[2] || 'embedsu'}
-                      onChange={e => {
-                        const current = settings.preferredServers || ['anikoto', 'vidsrc', 'embedsu'];
-                        const newThird = e.target.value as any;
-                        const updated = [current[0] || 'anikoto', current[1] || 'vidsrc', newThird];
-                        onSaveSettings({
-                          ...settings,
-                          preferredServers: updated as any,
-                        });
-                      }}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
-                    >
-                      <option value="anikoto">Anikoto (Fast HD)</option>
-                      <option value="vidsrc">VidSrc Mirror</option>
-                      <option value="embedsu">★ EmbedSu Multi-Stream</option>
-                      <option value="2embed">2Embed Direct Engine</option>
-                    </select>
-                  </div>
+                  <select
+                    value={settings.preferredServers?.[0] || 'official-link'}
+                    onChange={e => onSaveSettings({ ...settings, preferredServers: [e.target.value as any] })}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="official-link">★ Official / licensed links</option>
+                  </select>
                 </div>
               </div>
 
@@ -816,17 +749,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {/* Stream Server Selection */}
               <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
                 <h4 className="font-bold text-slate-200 text-sm">
-                  Default Video Mirror Server
+                  Default Video Source
                 </h4>
                 <select
                   value={settings.defaultStreamServer || 'auto'}
                   onChange={e => onSaveSettings({ ...settings, defaultStreamServer: e.target.value })}
                   className="w-full px-4 py-2.5 rounded-xl bg-[#0b0e1b] border border-slate-800 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none"
                 >
-                  <option value="auto">Auto Select (Fastest Available HD Source)</option>
-                  <option value="vidcloud">VidCloud Ultra HD Server</option>
-                  <option value="streamsb">StreamSB Rapid Server</option>
-                  <option value="hydrax">Hydrax Multi-Quality Server</option>
+                  <option value="auto">Auto select official source</option>
+                  <option value="official-link">Official / licensed links</option>
                 </select>
               </div>
             </div>
