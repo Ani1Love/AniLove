@@ -1,0 +1,6 @@
+{
+  "name": "AniLove - Anime Tracker & Stream",
+  "description": "A modern anime tracking, airing schedule, discovery, and streaming web app with AniList two-way cloud synchronization and playlist import.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
