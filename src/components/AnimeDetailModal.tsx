@@ -64,9 +64,7 @@ export const AnimeDetailModal: React.FC<AnimeDetailModalProps> = ({
   const [episodeSearchQuery, setEpisodeSearchQuery] = useState<string>('');
   const [episodeViewMode, setEpisodeViewMode] = useState<'list' | 'grid'>('list');
   const [showFullSynopsis, setShowFullSynopsis] = useState<boolean>(false);
-  const [streamServer, setStreamServer] = useState<'anikoto' | 'vidsrc' | 'embedsu' | '2embed'>('anikoto');
   const [audioMode, setAudioMode] = useState<'SUB' | 'DUB'>('SUB');
-  const [isServerDropdownOpen, setIsServerDropdownOpen] = useState(false);
 
   const playerRef = useRef<HTMLDivElement>(null);
 
@@ -290,20 +288,7 @@ export const AnimeDetailModal: React.FC<AnimeDetailModalProps> = ({
     );
   }, [episodeList, episodeSearchQuery]);
 
-  // Embed streaming URL generator
-  const getEmbedStreamUrl = (ep: number) => {
-    if (!currentAnime) return '';
-    const anilistId = currentAnime.id;
-    if (streamServer === 'vidsrc') {
-      return `https://vidsrc.to/embed/anime/${anilistId}/${ep}`;
-    } else if (streamServer === 'embedsu') {
-      return `https://embed.su/embed/anime/${anilistId}/${ep}`;
-    } else if (streamServer === '2embed') {
-      return `https://2embed.org/embed/anime?anilist=${anilistId}&ep=${ep}`;
-    }
-    // anikoto (vidsrc proxy)
-    return `https://vidsrc.to/embed/anime/${anilistId}/${ep}`;
-  };
+
 
   if (!isOpen || !anime || !currentAnime) return null;
 

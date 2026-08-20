@@ -190,7 +190,7 @@ export interface AppNotification {
   episode?: number;
 }
 
-export type StreamServerId = 'anikoto' | 'vidsrc' | 'embedsu' | '2embed';
+export type StreamServerId = 'official-link';
 export type AudioLanguagePreference = 'SUB' | 'DUB';
 
 export interface UserSettings {
@@ -212,7 +212,7 @@ export interface UserSettings {
   // Player & App Preferences
   preferredAudio: 'sub' | 'dub';
   preferredLanguages: AudioLanguagePreference[]; // e.g. ['SUB', 'DUB'] (Rank 1, Rank 2)
-  preferredServers: StreamServerId[]; // e.g. ['anikoto', 'vidsrc', 'embedsu'] (Rank 1, Rank 2, Rank 3)
+  preferredServers: StreamServerId[]; // ordered legal/official streaming providers
   autoPlayNextEpisode: boolean;
   defaultStreamServer: string;
 }
