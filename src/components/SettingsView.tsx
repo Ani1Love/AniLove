@@ -6,8 +6,18 @@ import {
   Sliders, Smartphone, Check, Moon, Sun, Info, BellRing,
   Trash2, Send
 } from 'lucide-react';
-import { UserSettings, UserMediaListItem, MediaListStatus } from '../types';
+import { AudioLanguagePreference, SUPPORTED_AUDIO_LANGUAGES, UserSettings, UserMediaListItem, MediaListStatus } from '../types';
 import { getAniListAuthUrl, fetchUserMediaList, fetchAuthenticatedViewer } from '../services/anilist';
+
+
+const languageKey = (language: AudioLanguagePreference) => `${language.code}-${language.mode}`;
+
+const moveLanguage = (languages: AudioLanguagePreference[], fromIndex: number, toIndex: number) => {
+  const next = [...languages];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return next;
+};
 
 interface SettingsViewProps {
   settings: UserSettings;
@@ -629,16 +639,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </p>
               </div>
 
-              {/* Preferred Audio Language Ranking (1st and 2nd Priority) */}
+              {/* Preferred Audio Language Ranking */}
               <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <h4 className="font-bold text-slate-200 text-sm flex items-center gap-2">
                       <Volume2 className="w-4 h-4 text-indigo-400" />
-                      <span>Preferred Audio Language (Priority Order)</span>
+                      <span>Preferred Audio Languages (Ranked)</span>
                     </h4>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Configure your #1 and #2 preferred audio playback formats (Sub vs Dub).
+                      Rank Japanese subtitles and regional dubs. The player falls back to the next available language for each provider.
                     </p>
                   </div>
                   <span className="px-2.5 py-1 rounded-lg bg-indigo-950/60 border border-indigo-500/30 text-[11px] font-bold text-indigo-300">
@@ -646,53 +656,41 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Priority 1 */}
-                  <div className="p-3.5 rounded-xl bg-[#0b0e1b] border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                      <span className="text-amber-400">1st Preference (Primary):</span>
-                      <span className="px-2 py-0.5 rounded bg-amber-950/70 border border-amber-500/40 text-[10px] text-amber-300 font-black">Rank 1</span>
+                <div className="space-y-2">
+                  {(settings.preferredLanguages?.length ? settings.preferredLanguages : SUPPORTED_AUDIO_LANGUAGES).map((language, index, languages) => (
+                    <div key={languageKey(language)} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#0b0e1b] border border-slate-800">
+                      <div className="min-w-0">
+                        <div className="text-xs font-black text-amber-300">Rank {index + 1}</div>
+                        <div className="text-sm font-bold text-white truncate">{language.label}</div>
+                        <div className="text-[11px] text-slate-400 uppercase">{language.code} • {language.mode}</div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          onClick={() => onSaveSettings({
+                            ...settings,
+                            preferredAudio: language.mode,
+                            preferredLanguages: moveLanguage(languages, index, index - 1),
+                          })}
+                          className="px-2 py-1 rounded-lg bg-slate-800 text-xs font-bold text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700"
+                        >
+                          Up
+                        </button>
+                        <button
+                          type="button"
+                          disabled={index === languages.length - 1}
+                          onClick={() => onSaveSettings({
+                            ...settings,
+                            preferredLanguages: moveLanguage(languages, index, index + 1),
+                          })}
+                          className="px-2 py-1 rounded-lg bg-slate-800 text-xs font-bold text-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-700"
+                        >
+                          Down
+                        </button>
+                      </div>
                     </div>
-                    <select
-                      value={settings.preferredLanguages?.[0] || 'sub'}
-                      onChange={e => {
-                        const first = e.target.value as 'sub' | 'dub';
-                        const second = first === 'sub' ? 'dub' : 'sub';
-                        onSaveSettings({
-                          ...settings,
-                          preferredAudio: first,
-                          preferredLanguages: [first, second],
-                        });
-                      }}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
-                    >
-                      <option value="sub">Japanese Audio with English Subtitles (SUB)</option>
-                      <option value="dub">English Voice Dubbing (DUB)</option>
-                    </select>
-                  </div>
-
-                  {/* Priority 2 */}
-                  <div className="p-3.5 rounded-xl bg-[#0b0e1b] border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                      <span className="text-indigo-400">2nd Preference (Fallback):</span>
-                      <span className="px-2 py-0.5 rounded bg-indigo-950/70 border border-indigo-500/40 text-[10px] text-indigo-300 font-black">Rank 2</span>
-                    </div>
-                    <select
-                      value={settings.preferredLanguages?.[1] || (settings.preferredLanguages?.[0] === 'dub' ? 'sub' : 'dub')}
-                      onChange={e => {
-                        const second = e.target.value as 'sub' | 'dub';
-                        const first = settings.preferredLanguages?.[0] || 'sub';
-                        onSaveSettings({
-                          ...settings,
-                          preferredLanguages: [first, second],
-                        });
-                      }}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
-                    >
-                      <option value="sub">Japanese Audio with English Subtitles (SUB)</option>
-                      <option value="dub">English Voice Dubbing (DUB)</option>
-                    </select>
-                  </div>
+                  ))}
                 </div>
               </div>
 

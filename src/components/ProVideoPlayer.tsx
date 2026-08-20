@@ -27,7 +27,7 @@ import {
   Sliders,
   Compass,
 } from 'lucide-react';
-import { Anime, ThumbnailAppearance, WatchHistoryEntry } from '../types';
+import { Anime, AudioLanguagePreference, SUPPORTED_AUDIO_LANGUAGES, StreamServerId, ThumbnailAppearance, WatchHistoryEntry } from '../types';
 import { recordWatchProgress, getStoredWatchHistory, getStoredSettings } from '../services/storage';
 
 interface EpisodeItem {
@@ -37,6 +37,27 @@ interface EpisodeItem {
   synopsis?: string;
   filler?: boolean;
 }
+
+
+const languageKey = (language: AudioLanguagePreference) => `${language.code}-${language.mode}`;
+
+const shortLanguageLabel = (language: AudioLanguagePreference) =>
+  language.mode === 'sub' ? 'JA SUB' : `${language.code.toUpperCase()} DUB`;
+
+const PROVIDER_LANGUAGE_KEYS: Record<StreamServerId, string[]> = {
+  anikoto: ['ja-sub', 'en-dub'],
+  vidsrc: ['ja-sub'],
+  embedsu: ['ja-sub', 'en-dub', 'hi-dub'],
+  '2embed': ['ja-sub', 'en-dub', 'hi-dub', 'ta-dub', 'te-dub', 'bn-dub', 'ml-dub'],
+};
+
+const getLanguagesForServer = (server: StreamServerId) =>
+  SUPPORTED_AUDIO_LANGUAGES.filter(language => PROVIDER_LANGUAGE_KEYS[server].includes(languageKey(language)));
+
+const resolvePreferredLanguage = (preferences: AudioLanguagePreference[] = [], server: StreamServerId) => {
+  const available = getLanguagesForServer(server);
+  return preferences.find(preferred => available.some(language => languageKey(language) === languageKey(preferred))) || available[0] || SUPPORTED_AUDIO_LANGUAGES[0];
+};
 
 interface ProVideoPlayerProps {
   anime: Anime;
@@ -79,8 +100,8 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
   const [showThumbnailMenu, setShowThumbnailMenu] = useState<boolean>(false);
   const [showEpisodeDrawer, setShowEpisodeDrawer] = useState<boolean>(false);
   const [directIframeInteractionMode, setDirectIframeInteractionMode] = useState<boolean>(false);
-  const [activeServer, setActiveServer] = useState<'anikoto' | 'vidsrc' | 'embedsu' | '2embed'>('anikoto');
-  const [audioMode, setAudioMode] = useState<'SUB' | 'DUB'>('SUB');
+  const [activeServer, setActiveServer] = useState<StreamServerId>('anikoto');
+  const [selectedLanguage, setSelectedLanguage] = useState<AudioLanguagePreference>(SUPPORTED_AUDIO_LANGUAGES[0]);
   const [quality, setQuality] = useState<'1080p' | '720p' | '480p' | 'auto'>('1080p');
   const [thumbnailStyle, setThumbnailStyle] = useState<ThumbnailAppearance>(initialThumbnailStyle);
 
@@ -92,9 +113,9 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
         setActiveServer(s.preferredServers[0]);
       }
       if (s.preferredLanguages && s.preferredLanguages.length > 0) {
-        setAudioMode(s.preferredLanguages[0] === 'DUB' ? 'DUB' : 'SUB');
+        setSelectedLanguage(resolvePreferredLanguage(s.preferredLanguages as AudioLanguagePreference[], s.preferredServers?.[0] || 'anikoto'));
       } else if (s.preferredAudio) {
-        setAudioMode(s.preferredAudio === 'dub' ? 'DUB' : 'SUB');
+        setSelectedLanguage(SUPPORTED_AUDIO_LANGUAGES.find(lang => lang.mode === s.preferredAudio) || SUPPORTED_AUDIO_LANGUAGES[0]);
       }
     } catch (err) {
       console.error('Error syncing player preferences:', err);
@@ -360,7 +381,7 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
   // Compute embed stream URL based on selected server
   const getEmbedStreamUrl = () => {
     const malId = anime.idMal || anime.id;
-    const isDub = audioMode === 'DUB';
+    const isDub = effectiveLanguage.mode === 'dub';
 
     switch (activeServer) {
       case 'anikoto':
@@ -375,6 +396,16 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
         return `https://anikoto.com/watch/${malId}?ep=${episodeNumber}`;
     }
   };
+
+  const availableLanguages = getLanguagesForServer(activeServer);
+  const languageUnavailable = !availableLanguages.some(language => languageKey(language) === languageKey(selectedLanguage));
+  const effectiveLanguage = languageUnavailable ? resolvePreferredLanguage(getStoredSettings().preferredLanguages as AudioLanguagePreference[], activeServer) : selectedLanguage;
+
+  useEffect(() => {
+    if (languageUnavailable) {
+      setSelectedLanguage(effectiveLanguage);
+    }
+  }, [activeServer, effectiveLanguage, languageUnavailable]);
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const currentEpData = episodesList.find(e => e.number === episodeNumber);
@@ -398,7 +429,7 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
       {/* 1. Underlying Video Player Stream / Iframe Frame */}
       <div className="absolute inset-0 z-0 bg-black">
         <iframe
-          key={`${activeServer}-${episodeNumber}-${audioMode}`}
+          key={`${activeServer}-${episodeNumber}-${effectiveLanguage.code}-${effectiveLanguage.mode}`}
           src={getEmbedStreamUrl()}
           title={`${anime.title?.english || anime.title?.romaji} - Episode ${episodeNumber}`}
           className={`w-full h-full border-0 ${directIframeInteractionMode ? 'pointer-events-auto' : 'pointer-events-none'}`}
@@ -512,21 +543,20 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
 
           {/* Top Right Quick Badges */}
           <div className="flex items-center gap-2 shrink-0 player-controls-interactive">
-            {/* Audio SUB / DUB switch */}
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                setAudioMode(prev => (prev === 'SUB' ? 'DUB' : 'SUB'));
-              }}
-              className={`px-3 py-1.5 rounded-xl font-bold text-xs transition border ${
-                audioMode === 'DUB'
-                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
-                  : 'bg-indigo-600/80 text-white border-indigo-400/40 hover:bg-indigo-600'
-              }`}
-              title="Toggle Sub / Dub Audio"
+            {/* Audio Language Selector */}
+            <select
+              value={languageKey(effectiveLanguage)}
+              onClick={e => e.stopPropagation()}
+              onChange={e => setSelectedLanguage(availableLanguages.find(lang => languageKey(lang) === e.target.value) || effectiveLanguage)}
+              className="px-3 py-1.5 rounded-xl font-bold text-xs transition border bg-slate-900/90 text-white border-indigo-400/40 hover:bg-slate-800 cursor-pointer"
+              title="Select audio language"
             >
-              {audioMode}
-            </button>
+              {availableLanguages.map(lang => (
+                <option key={languageKey(lang)} value={languageKey(lang)}>
+                  {shortLanguageLabel(lang)}
+                </option>
+              ))}
+            </select>
 
             {/* Thumbnail Appearance Button */}
             <button
@@ -687,7 +717,7 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
                     key={srv}
                     onClick={() => {
                       setActiveServer(srv);
-                      setShowSettingsMenu(false);
+                      setSelectedLanguage(prev => (getLanguagesForServer(srv).some(lang => languageKey(lang) === languageKey(prev)) ? prev : resolvePreferredLanguage(getStoredSettings().preferredLanguages as AudioLanguagePreference[], srv)));
                     }}
                     className={`py-1.5 px-2 rounded-lg text-left text-xs font-semibold transition ${
                       activeServer === srv
@@ -699,6 +729,40 @@ export const ProVideoPlayer: React.FC<ProVideoPlayerProps> = ({
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Language Availability */}
+            <div className="space-y-1.5">
+              <div className="text-neutral-300 font-bold">Language:</div>
+              <div className="grid grid-cols-1 gap-1.5">
+                {SUPPORTED_AUDIO_LANGUAGES.map(lang => {
+                  const available = availableLanguages.some(availableLanguage => languageKey(availableLanguage) === languageKey(lang));
+                  const selected = languageKey(effectiveLanguage) === languageKey(lang);
+                  return (
+                    <button
+                      key={languageKey(lang)}
+                      type="button"
+                      disabled={!available}
+                      onClick={() => available && setSelectedLanguage(lang)}
+                      className={`py-1.5 px-2 rounded-lg text-left text-xs font-semibold transition flex items-center justify-between gap-2 ${
+                        selected
+                          ? 'bg-indigo-600 text-white font-bold'
+                          : available
+                            ? 'bg-neutral-900 text-neutral-300 hover:bg-neutral-800 border border-neutral-800'
+                            : 'bg-neutral-950 text-neutral-600 border border-neutral-900 cursor-not-allowed'
+                      }`}
+                    >
+                      <span>{lang.label}</span>
+                      <span className={available ? 'text-emerald-300' : 'text-rose-400'}>
+                        {available ? (selected ? 'Active' : 'Available') : 'Unavailable'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-neutral-500">
+                If your preferred language is unavailable on {activeServer}, AniLove automatically uses the next ranked language.
+              </p>
             </div>
 
             {/* Direct Iframe Clicks Toggle */}

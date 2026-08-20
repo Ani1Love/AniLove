@@ -191,7 +191,24 @@ export interface AppNotification {
 }
 
 export type StreamServerId = 'anikoto' | 'vidsrc' | 'embedsu' | '2embed';
-export type AudioLanguagePreference = 'SUB' | 'DUB';
+export type AudioLanguageCode = 'ja' | 'en' | 'hi' | 'ta' | 'te' | 'bn' | 'ml';
+export type AudioLanguageMode = 'sub' | 'dub';
+
+export interface AudioLanguagePreference {
+  code: AudioLanguageCode;
+  label: string;
+  mode: AudioLanguageMode;
+}
+
+export const SUPPORTED_AUDIO_LANGUAGES: AudioLanguagePreference[] = [
+  { code: 'ja', label: 'Japanese + English Subtitles', mode: 'sub' },
+  { code: 'en', label: 'English Dub', mode: 'dub' },
+  { code: 'hi', label: 'Hindi Dub', mode: 'dub' },
+  { code: 'ta', label: 'Tamil Dub', mode: 'dub' },
+  { code: 'te', label: 'Telugu Dub', mode: 'dub' },
+  { code: 'bn', label: 'Bengali Dub', mode: 'dub' },
+  { code: 'ml', label: 'Malayalam Dub', mode: 'dub' },
+];
 
 export interface UserSettings {
   theme: 'dark' | 'light';
@@ -211,7 +228,7 @@ export interface UserSettings {
   browserPushEnabled: boolean;
   // Player & App Preferences
   preferredAudio: 'sub' | 'dub';
-  preferredLanguages: AudioLanguagePreference[]; // e.g. ['SUB', 'DUB'] (Rank 1, Rank 2)
+  preferredLanguages: AudioLanguagePreference[]; // Ranked language preferences, e.g. Japanese subtitles then English dub
   preferredServers: StreamServerId[]; // e.g. ['anikoto', 'vidsrc', 'embedsu'] (Rank 1, Rank 2, Rank 3)
   autoPlayNextEpisode: boolean;
   defaultStreamServer: string;

@@ -1,4 +1,4 @@
-import { UserMediaListItem, UserSettings, Anime } from '../types';
+import { UserMediaListItem, UserSettings, Anime, SUPPORTED_AUDIO_LANGUAGES } from '../types';
 
 const SETTINGS_KEY = 'anilove_settings_v3';
 const SETTINGS_KEY_LEGACY = 'anilili_settings_v3';
@@ -23,10 +23,40 @@ export const DEFAULT_SETTINGS: UserSettings = {
   notifyDailyDigest: true,
   browserPushEnabled: false,
   preferredAudio: 'sub',
-  preferredLanguages: ['SUB', 'DUB'],
+  preferredLanguages: SUPPORTED_AUDIO_LANGUAGES,
   preferredServers: ['anikoto', 'vidsrc', 'embedsu'],
   autoPlayNextEpisode: true,
   defaultStreamServer: 'auto',
+};
+
+
+const normalizePreferredLanguages = (languages: unknown): UserSettings['preferredLanguages'] => {
+  if (!Array.isArray(languages) || languages.length === 0) return DEFAULT_SETTINGS.preferredLanguages;
+
+  const normalized = languages
+    .map(language => {
+      if (typeof language === 'string') {
+        const mode = language.toLowerCase() === 'dub' ? 'dub' : 'sub';
+        return SUPPORTED_AUDIO_LANGUAGES.find(item => item.mode === mode);
+      }
+      if (language && typeof language === 'object' && 'code' in language && 'mode' in language) {
+        const match = SUPPORTED_AUDIO_LANGUAGES.find(
+          item => item.code === (language as any).code && item.mode === (language as any).mode
+        );
+        return match || language;
+      }
+      return undefined;
+    })
+    .filter(Boolean) as UserSettings['preferredLanguages'];
+
+  const withMissingDefaults = [
+    ...normalized,
+    ...SUPPORTED_AUDIO_LANGUAGES.filter(
+      supported => !normalized.some(language => language.code === supported.code && language.mode === supported.mode)
+    ),
+  ];
+
+  return withMissingDefaults;
 };
 
 export function getStoredSettings(): UserSettings {
@@ -34,7 +64,11 @@ export function getStoredSettings(): UserSettings {
     const raw = localStorage.getItem(SETTINGS_KEY) || localStorage.getItem(SETTINGS_KEY_LEGACY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      preferredLanguages: normalizePreferredLanguages(parsed.preferredLanguages),
+    };
   } catch (e) {
     console.error('Error reading stored settings:', e);
     return DEFAULT_SETTINGS;
